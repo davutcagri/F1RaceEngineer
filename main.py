@@ -1,20 +1,33 @@
-import plot
-import parser
 import threading
 
-def update_udp():
+from dotenv import load_dotenv
+
+from ai.assistant import get_advice
+from ai.speech import speak
+from telemetry import state
+from telemetry.listener import listen
+from ui.dashboard import start
+
+load_dotenv()
+
+ADVICE_INTERVAL_SECONDS = 30
+
+
+def run_race_engineer() -> None:
     while True:
-        telemetry_data = parser.get_telemetry_data()
-        if telemetry_data:
-            plot.data_buffer["speed"].append(telemetry_data["speed"])
-            plot.data_buffer["throttle"].append(telemetry_data["throttle"])
-            plot.data_buffer["brake"].append(telemetry_data["brake"])
-            plot.data_buffer["rpm"].append(telemetry_data["rpm"])
-            plot.data_buffer["brakes_temperature"].append(telemetry_data["brakes_temperature"])
-            plot.data_buffer["tyres_surface_temp"].append(telemetry_data["tyres_surface_temp"])
-            plot.data_buffer["tyre_age"].append(telemetry_data["tyre_age"])
+        state.wait_for_advice_trigger(ADVICE_INTERVAL_SECONDS)
+        if not state.has_data():
+            continue
 
-thread = threading.Thread(target=update_udp, daemon=True)
-thread.start()
+        try:
+            advice = get_advice()
+            print(f"\n[Race Engineer] {advice}\n")
+            speak(advice)
+        except Exception as exc:
+            print(f"\n[Race Engineer] Could not get advice: {exc}\n")
 
-plot.start()
+
+threading.Thread(target=listen, daemon=True).start()
+threading.Thread(target=run_race_engineer, daemon=True).start()
+
+start()
